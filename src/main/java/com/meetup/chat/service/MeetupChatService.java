@@ -7,6 +7,7 @@ import com.meetup.chat.dto.ChatPageResponse;
 import com.meetup.chat.repository.MeetupChatMessageRepository;
 import com.meetup.global.exception.BusinessException;
 import com.meetup.global.exception.ErrorCode;
+import com.meetup.member.service.MemberNicknameService;
 import com.meetup.participant.repository.MeetupParticipantRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -22,6 +24,7 @@ public class MeetupChatService {
 
     private final MeetupChatMessageRepository chatMessageRepository;
     private final MeetupParticipantRepository participantRepository;
+    private final MemberNicknameService memberNicknameService;
 
     private static final int DEFAULT_PAGE_SIZE = 30;
 
@@ -35,10 +38,22 @@ public class MeetupChatService {
         boolean hasNext = messages.size() > fetchSize;
         List<MeetupChatMessage> result = hasNext ? messages.subList(0, fetchSize) : messages;
 
+        Map<Long, String> nicknamesByMember = memberNicknameService.resolveNicknames(
+                result.stream()
+                        .filter(message -> !message.isSystem())
+                        .map(MeetupChatMessage::getSenderMemberId)
+                        .toList()
+        );
+
         Long nextCursor = hasNext ? result.get(result.size() - 1).getId() : null;
 
         return new ChatPageResponse(
-                result.stream().map(ChatMessageResponse::from).toList(),
+                result.stream()
+                        .map(message -> ChatMessageResponse.from(
+                                message,
+                                resolveSenderNickname(message, nicknamesByMember)
+                        ))
+                        .toList(),
                 nextCursor,
                 hasNext
         );
@@ -60,6 +75,27 @@ public class MeetupChatService {
                 .message(request.message())
                 .build();
 
-        return ChatMessageResponse.from(chatMessageRepository.save(message));
+        MeetupChatMessage saved = chatMessageRepository.save(message);
+        String senderNickname = resolveMemberNickname(memberId, memberNicknameService.resolveNicknames(List.of(memberId)));
+        return ChatMessageResponse.from(saved, senderNickname);
+    }
+
+    private String resolveSenderNickname(MeetupChatMessage message, Map<Long, String> nicknamesByMember) {
+        if (message.isSystem()) {
+            return "SYSTEM";
+        }
+        return resolveMemberNickname(message.getSenderMemberId(), nicknamesByMember);
+    }
+
+    private String resolveMemberNickname(Long memberId, Map<Long, String> nicknamesByMember) {
+        if (memberId == null) {
+            return "SYSTEM";
+        }
+
+        String nickname = nicknamesByMember.get(memberId);
+        if (nickname == null || nickname.isBlank()) {
+            return "회원 #" + memberId;
+        }
+        return nickname;
     }
 }

@@ -19,6 +19,13 @@ eureka:
     hostname: meetup-service
     prefer-ip-address: false
 
+member-service:
+  base-url: ${MEMBER_SERVICE_BASE_URL:http://member-service:8080}
+  nickname-path: ${MEMBER_SERVICE_NICKNAME_PATH:/internal/members/nicknames}
+
+internal:
+  api-key: ${INTERNAL_API_KEY}
+
 server:
   port: 8084
 

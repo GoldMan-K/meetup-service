@@ -48,7 +48,7 @@ public class MeetupController {
         return ResponseEntity.ok(meetupService.getMeetupDetail(meetupId));
     }
 
-    @Operation(summary = "참가자 목록 조회")
+    @Operation(summary = "참가자 목록 조회", description = "각 참가자 항목에 nickname 필드를 포함해 반환합니다.")
     @GetMapping("/{meetupId}/participants")
     public ResponseEntity<List<ParticipantResponse>> getParticipants(@PathVariable Long meetupId) {
         return ResponseEntity.ok(meetupService.getParticipants(meetupId));

@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 public record MeetupResponse(
         Long id,
         Long hostMemberId,
+        String hostNickname,
         String title,
         String typeCode,
         String regionCode,
@@ -19,9 +20,14 @@ public record MeetupResponse(
         LocalDateTime createdAt
 ) {
     public static MeetupResponse of(Meetup meetup, int participantCount) {
+        return of(meetup, participantCount, null);
+    }
+
+    public static MeetupResponse of(Meetup meetup, int participantCount, String hostNickname) {
         return new MeetupResponse(
                 meetup.getId(),
                 meetup.getHostMemberId(),
+                hostNickname,
                 meetup.getTitle(),
                 meetup.getTypeCode(),
                 meetup.getRegionCode(),

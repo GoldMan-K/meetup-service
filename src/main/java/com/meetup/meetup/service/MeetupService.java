@@ -13,6 +13,7 @@ import com.meetup.participant.dto.ParticipantResponse;
 import com.meetup.participant.repository.MeetupParticipantRepository;
 import com.meetup.chat.domain.MeetupChatMessage;
 import com.meetup.chat.repository.MeetupChatMessageRepository;
+import com.meetup.member.service.MemberNicknameService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -22,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -33,14 +35,23 @@ public class MeetupService {
     private final MeetupParticipantRepository participantRepository;
     private final MeetupChatMessageRepository chatMessageRepository;
     private final MeetupEventProducer eventProducer;
+    private final MemberNicknameService memberNicknameService;
 
     // ─── 목록 조회 ───────────────────────────────────────────────────────────
 
     public Page<MeetupResponse> getMeetupList(String regionCode, String typeCode,
                                               LocalDateTime meetAtFrom, LocalDateTime meetAtTo,
                                               Pageable pageable) {
-        return meetupRepository.findAllByFilter(regionCode, typeCode, meetAtFrom, meetAtTo, pageable)
-                .map(m -> MeetupResponse.of(m, participantRepository.countByMeetupId(m.getId())));
+        Page<Meetup> page = meetupRepository.findAllByFilter(regionCode, typeCode, meetAtFrom, meetAtTo, pageable);
+        Map<Long, String> nicknamesByHost = memberNicknameService.resolveNicknames(
+                page.getContent().stream().map(Meetup::getHostMemberId).toList()
+        );
+
+        return page.map(meetup -> MeetupResponse.of(
+                meetup,
+                participantRepository.countByMeetupId(meetup.getId()),
+                resolveNickname(meetup.getHostMemberId(), nicknamesByHost)
+        ));
     }
 
     // ─── 상세 조회 ───────────────────────────────────────────────────────────
@@ -48,14 +59,26 @@ public class MeetupService {
     public MeetupResponse getMeetupDetail(Long meetupId) {
         Meetup meetup = findMeetup(meetupId);
         int count = participantRepository.countByMeetupId(meetupId);
-        return MeetupResponse.of(meetup, count);
+        String hostNickname = resolveNickname(
+                meetup.getHostMemberId(),
+                memberNicknameService.resolveNicknames(List.of(meetup.getHostMemberId()))
+        );
+        return MeetupResponse.of(meetup, count, hostNickname);
     }
 
     public List<ParticipantResponse> getParticipants(Long meetupId) {
         findMeetup(meetupId); // 존재 여부 확인
-        return participantRepository.findAllByMeetupId(meetupId)
+        List<MeetupParticipant> participants = participantRepository.findAllByMeetupId(meetupId);
+        Map<Long, String> nicknamesByMember = memberNicknameService.resolveNicknames(
+                participants.stream().map(MeetupParticipant::getMemberId).toList()
+        );
+
+        return participants
                 .stream()
-                .map(ParticipantResponse::from)
+                .map(participant -> ParticipantResponse.from(
+                        participant,
+                        resolveNickname(participant.getMemberId(), nicknamesByMember)
+                ))
                 .toList();
     }
 
@@ -83,7 +106,8 @@ public class MeetupService {
                 .build();
         participantRepository.save(host);
 
-        return MeetupResponse.of(meetup, 1);
+        String hostNickname = resolveNickname(memberId, memberNicknameService.resolveNicknames(List.of(memberId)));
+        return MeetupResponse.of(meetup, 1, hostNickname);
     }
 
     // ─── 수정 ────────────────────────────────────────────────────────────────
@@ -98,7 +122,11 @@ public class MeetupService {
                 request.place(), request.description(), request.capacity(), request.meetAt());
 
         int count = participantRepository.countByMeetupId(meetupId);
-        return MeetupResponse.of(meetup, count);
+        String hostNickname = resolveNickname(
+                meetup.getHostMemberId(),
+                memberNicknameService.resolveNicknames(List.of(meetup.getHostMemberId()))
+        );
+        return MeetupResponse.of(meetup, count, hostNickname);
     }
 
     // ─── 취소 ────────────────────────────────────────────────────────────────
@@ -193,5 +221,13 @@ public class MeetupService {
     private Meetup findMeetup(Long meetupId) {
         return meetupRepository.findById(meetupId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MEETUP_NOT_FOUND));
+    }
+
+    private String resolveNickname(Long memberId, Map<Long, String> nicknamesByMember) {
+        String nickname = nicknamesByMember.get(memberId);
+        if (nickname == null || nickname.isBlank()) {
+            return "회원 #" + memberId;
+        }
+        return nickname;
     }
 }

@@ -28,7 +28,8 @@ public enum ErrorCode {
 
     // 채팅
     CHAT_MESSAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "채팅 메시지를 찾을 수 없습니다."),
-    CHAT_NOT_PARTICIPANT(HttpStatus.FORBIDDEN, "모임 참가자만 채팅할 수 있습니다.");
+    CHAT_NOT_PARTICIPANT(HttpStatus.FORBIDDEN, "모임 참가자만 채팅할 수 있습니다."),
+    TYPING_DISABLED(HttpStatus.CONFLICT, "입력중 상태를 사용할 수 없는 모임입니다.");
 
     private final HttpStatus status;
     private final String message;

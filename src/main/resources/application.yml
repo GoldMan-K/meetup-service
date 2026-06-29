@@ -44,6 +44,16 @@ eureka:
   instance:
     prefer-ip-address: true
 
+member-service:
+  base-url: ${MEMBER_SERVICE_BASE_URL:http://localhost:8081}
+  nickname-path: ${MEMBER_SERVICE_NICKNAME_PATH:/internal/members/nicknames}
+
+internal:
+  api-key: ${INTERNAL_API_KEY:}
+
+typing:
+  ttl-seconds: ${TYPING_TTL_SECONDS:5}
+
 springdoc:
   api-docs:
     path: /api-docs
