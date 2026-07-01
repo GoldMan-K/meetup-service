@@ -2,7 +2,7 @@ spring:
   application:
     name: meetup-service
   profiles:
-    active: local # local / dev / prod
+    active: prod # local / dev / prod
 
   jpa:
     hibernate:
